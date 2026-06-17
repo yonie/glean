@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>homebrew XO — sample space + drum machine</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>homebrew <span>XO</span></h1>
+    <button class="btn" id="pick">Open folder…</button>
+    <div class="seg"><button id="tMap" class="on">Map</button><button id="tSeq">Sequencer</button></div>
+    <input id="search" placeholder="search filename…" autocomplete="off">
+    <div class="bpm">BPM <input id="bpm" type="number" value="120" min="40" max="240"></div>
+    <button class="btn play" id="play">▶ Play</button>
+    <span class="stat" id="stat">no folder loaded</span>
+  </header>
+  <main>
+    <!-- MAP VIEW -->
+    <div id="mapview">
+      <div id="side"><h3>Folders</h3></div>
+      <div id="stage">
+        <div id="selbar">
+          <div id="selname">Drag across the map to scan sounds by ear · click a dot to drop it on the active track</div>
+          <div id="target">▸ Track 1</div>
+          <canvas id="wave" width="150" height="32"></canvas>
+        </div>
+        <div id="mapwrap">
+          <canvas id="map"></canvas>
+          <div id="maphint"></div><div id="prog"></div>
+          <div class="welcome" id="welcome">Click <b>Open folder…</b> and choose any folder of
+            samples.<br><br>Everything runs locally in your browser — nothing is uploaded.</div>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+    <!-- SEQUENCER VIEW -->
+    <div id="seqview">
+      <div id="fxpanel"></div>
+      <div id="grid"></div>
+      <div class="hint">Tip: click a track's name to browse the map for a new sample for it.
+        Toggle steps to build a pattern, hit Play.</div>
+    </div>
+  </main>
+</div>
+<input type="file" id="dir" webkitdirectory directory multiple style="display:none">
+<script src="js/util.js"></script>
+<script src="js/dsp.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

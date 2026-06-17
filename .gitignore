@@ -1,0 +1,26 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node (if a build is added later)
+node_modules/
+dist/
+
+# Sample libraries / audio — never commit big binaries or user samples
+*.wav
+*.aif
+*.aiff
+*.flac
+*.mp3
+samples/
+digitakt-out/
