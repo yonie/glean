@@ -46,7 +46,9 @@ main{flex:1;min-height:0;position:relative}
 #maphint{position:absolute;top:10px;left:14px;color:var(--dim);font-size:12px;pointer-events:none}
 #prog{position:absolute;top:10px;right:14px;color:var(--accent);font-size:12px;pointer-events:none}
 .legend{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:8px;padding:5px 12px;font-size:10px;color:var(--dim);border-top:1px solid var(--line);background:var(--panel)}
-.legend span{display:inline-flex;align-items:center;gap:4px} .legend i{width:8px;height:8px;border-radius:50%}
+.legend span{display:inline-flex;align-items:center;gap:4px;cursor:pointer;padding:2px 6px;border-radius:10px}
+.legend span:hover{background:var(--panel2)} .legend span.off{opacity:.32}
+.legend i{width:8px;height:8px;border-radius:50%}
 .welcome{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;text-align:center;color:var(--dim)}
 code{background:#0c0e12;padding:1px 5px;border-radius:4px;color:var(--accent2)}
 /* ---- SEQUENCER VIEW ---- */

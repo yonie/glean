@@ -12,6 +12,7 @@ async function audition(it){
   selected=it;
   $("#selname").innerHTML=`<b>${it.name}</b> &nbsp;·&nbsp; ${it.segs.slice(0,-1).join(" / ")}`;
   let buf; try{ buf=await getBuffer(it); }catch(_){ return; }
+  if(!feat.has(it.path)){ try{ const v=featuresFromBuffer(buf); feat.set(it.path,v); atype.set(it.path,classifyAudio(v)); }catch(_){} }
   if(auditionSrc){ try{auditionSrc.stop();}catch(_){} }
   const s=ac().createBufferSource(); s.buffer=buf; s.connect(ac().destination); s.start(); auditionSrc=s;
   drawWave(buf);
@@ -20,7 +21,7 @@ function drawWave(buf){
   const cv=$("#wave"),dpr=devicePixelRatio||1,W=cv.width=cv.clientWidth*dpr,H=cv.height=cv.clientHeight*dpr;
   const g=cv.getContext("2d"); g.clearRect(0,0,W,H);
   const d=buf.getChannelData(0),step=Math.max(1,Math.floor(d.length/W));
-  g.strokeStyle=colorFor(selected?selected.cat:"FX"); g.beginPath();
+  g.strokeStyle=colorFor(selected?audioType(selected):"OTHER"); g.beginPath();
   for(let x=0;x<W;x++){let mn=1,mx=-1;for(let i=0;i<step;i++){const v=d[x*step+i]||0;if(v<mn)mn=v;if(v>mx)mx=v;}
     g.moveTo(x,(1-(mx*.5+.5))*H);g.lineTo(x,(1-(mn*.5+.5))*H);} g.stroke();
 }
@@ -43,6 +44,7 @@ function triggerTrack(t,when){ const tr=tracks[t]; if(!tr.buffer||tr.fx.mute) re
   const n=ensureNodes(t); const s=ac().createBufferSource(); s.buffer=tr.buffer;
   s.playbackRate.value=Math.pow(2,tr.fx.pitch/12); s.connect(n.filter); s.start(when||0); }
 async function assignToTrack(t,it){ let buf; try{ buf=await getBuffer(it); }catch(_){ return; }
-  tracks[t].item=it; tracks[t].buffer=buf; tracks[t].cat=it.cat; buildGrid(); renderFX(); }
-function clearTrack(t){ tracks[t].item=null; tracks[t].buffer=null; tracks[t].cat=null;
+  if(!feat.has(it.path)){ try{ const v=featuresFromBuffer(buf); feat.set(it.path,v); atype.set(it.path,classifyAudio(v)); }catch(_){} }
+  tracks[t].item=it; tracks[t].buffer=buf; tracks[t].type=audioType(it); buildGrid(); renderFX(); }
+function clearTrack(t){ tracks[t].item=null; tracks[t].buffer=null; tracks[t].type=null;
   for(let s=0;s<NS;s++) pattern[t][s]=false; buildGrid(); renderFX(); }

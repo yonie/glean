@@ -50,6 +50,25 @@ function featuresFromBuffer(buf){
   const ba=bands.reduce((a,b)=>a+b,0)||1; for(let i=0;i<B;i++) bands[i]=Math.log(1+bands[i]/ba*10);
   return [Math.log10(Math.max(.02,dur)),rms,zcr,attack,decay,centroid,spread,roll,flat,...bands];
 }
+// Heuristic sound-type from the audio feature vector (NOT the filename). Audio-only
+// classification has a real ceiling (~50-60%): a single clap ≈ a snare, congas ≈ toms,
+// etc. — so treat colors as a sonic hint, not ground truth. v = featuresFromBuffer().
+function classifyAudio(v){
+  const dur=Math.pow(10,v[0]), zcr=v[2], attack=v[3], decay=v[4], cN=v[5], roll=v[7], flat=v[8];
+  const tonal = flat < 0.03;
+  if(dur > 1.6){                                  // long
+    if(tonal) return (attack>0.08 || dur>2.6) ? "PADS" : "LEADS";
+    if(zcr<0.05 && cN<0.05) return "BASS";
+    return "LOOPS";
+  }
+  if(cN>0.18 && (zcr>0.12 || flat>0.1)) return decay>0.45 ? "CYMBALS" : "HATS";  // bright+noisy
+  if(cN<0.02 && decay<0.5) return "KICKS";        // very dark + short
+  if(tonal && cN<0.04) return dur>0.5 ? "BASS" : "KICKS";
+  if(tonal && cN<0.07) return "TOMS";             // mid tonal, decaying
+  if(tonal) return "LEADS";
+  if((zcr>0.08||flat>0.08) && cN<0.18) return "SNARES";   // noisy mid (snare/clap)
+  return "PERC";
+}
 function dot(a,b){ let s=0; for(let i=0;i<a.length;i++) s+=a[i]*b[i]; return s; }
 function powerIter(C,d,defl){
   let v=new Array(d); for(let i=0;i<d;i++) v[i]=Math.sin(i*1.7+1);
