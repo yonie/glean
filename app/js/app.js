@@ -93,13 +93,19 @@ function drawMap(){
     if(isSel){ g.globalAlpha=1; g.lineWidth=2*dpr; g.strokeStyle="#fff"; g.stroke(); }
     mapPts.push({X,Y,it}); });
   g.globalAlpha=1;
-  $("#maphint").textContent=`${list.length} sounds · drag to scan · click to drop on Track ${activeTrack+1}`;
+  $("#maphint").textContent=assignMode
+    ? `${list.length} sounds · click a dot to LOAD into Track ${activeTrack+1} · Esc to cancel`
+    : `${list.length} sounds · drag to scan · click to preview`;
 }
 function nearest(mx,my){ let best=null,bd=1e18; for(const p of mapPts){ const d=(p.X-mx)**2+(p.Y-my)**2; if(d<bd){bd=d;best=p;} } return best; }
 
 /* ---------- map interaction: drag-scrub preview, click = assign to active track ---------- */
-let scrubbing=false, moved=false, downXY=null, lastItem=null;
+let scrubbing=false, moved=false, downXY=null, lastItem=null, assignMode=false;
 const mapEl=$("#map");
+// enter "assign mode": next map click loads a sound onto track t, then returns to seq
+function enterAssign(t){ activeTrack=t; assignMode=true; setView("map");
+  $("#selname").innerHTML=`<b>Choose a sample for Track ${t+1}</b> — click a dot to load it · Esc to cancel`;
+  drawMap(); }
 function toCanvas(e){ const r=mapEl.getBoundingClientRect(),dpr=devicePixelRatio||1; return [(e.clientX-r.left)*dpr,(e.clientY-r.top)*dpr]; }
 function previewAt(e){ const [mx,my]=toCanvas(e), p=nearest(mx,my);
   if(p && p.it!==lastItem){ lastItem=p.it; audition(p.it); drawMap(); } }
@@ -109,8 +115,10 @@ window.addEventListener("mousemove",e=>{ if(!scrubbing) return;
   if(downXY && (Math.abs(e.clientX-downXY[0])+Math.abs(e.clientY-downXY[1]))>4) moved=true;
   previewAt(e); });
 window.addEventListener("mouseup",e=>{ if(!scrubbing) return; scrubbing=false;
-  if(!moved){ const [mx,my]=toCanvas(e), p=nearest(mx,my);
-    if(p){ audition(p.it); assignToTrack(activeTrack,p.it); setView("seq"); } } });
+  // mousedown already auditioned the sound under the cursor — don't replay it here.
+  if(!moved && assignMode){ const [mx,my]=toCanvas(e), p=nearest(mx,my);
+    if(p){ assignToTrack(activeTrack,p.it); assignMode=false; setView("seq"); } } });
+addEventListener("keydown",e=>{ if(e.key==="Escape" && assignMode){ assignMode=false; setView("seq"); } });
 
 /* ---------- sequencer: FX panel + step grid ---------- */
 function renderFX(){
@@ -122,9 +130,11 @@ function renderFX(){
     <label class="knob">${label} <span class="v" id="v_${key}">${fmts[key](f[key])}</span>
     <input type="range" id="k_${key}" min="${min}" max="${max}" step="${stepv}" value="${f[key]}"></label>`;
   host.innerHTML=`<span class="ttl">Track ${activeTrack+1}: ${tr.item?tr.item.name:"— empty —"}</span>`
+    +`<button class="fxbtn" id="loadbtn">${tr.item?"↻ Change sample":"+ Load sample"}</button>`
     +knob("vol","Volume",0,1,0.01)+knob("pan","Pan",-1,1,0.02)+knob("cut","Filter",200,18000,50)
     +knob("q","Reso",0.1,12,0.1)+knob("low","EQ Low",-18,18,0.5)+knob("high","EQ High",-18,18,0.5)
     +knob("pitch","Pitch",-12,12,1);
+  $("#loadbtn").onclick=()=>enterAssign(activeTrack);
   for(const key of ["vol","pan","cut","q","low","high","pitch"]){
     const el=$("#k_"+key); el.oninput=()=>{ f[key]=parseFloat(el.value);
       $("#v_"+key).textContent=fmts[key](f[key]); ensureNodes(activeTrack); applyFX(activeTrack); };
@@ -136,14 +146,15 @@ function buildGrid(){
     const tr=tracks[t], row=document.createElement("div"); row.className="track";
     const slot=document.createElement("div"); slot.className="slot"+(t===activeTrack?" active":"");
     slot.innerHTML=`<span class="sw" style="background:${tr.cat?colorFor(tr.cat):'#333'}"></span>
-      <span class="tn ${tr.item?'has':''}">${tr.item?tr.item.name:'Track '+(t+1)+' — click to browse'}</span>
+      <span class="tn ${tr.item?'has':''}">${tr.item?tr.item.name:'Track '+(t+1)+' — empty'}</span>
+      <span class="ld" title="load / change sample">⇄</span>
       <span class="m ${tr.fx.mute?'on':''}">M</span>`;
     slot.onclick=ev=>{
       if(ev.target.classList.contains("m")){ tr.fx.mute=!tr.fx.mute; ensureNodes(t); applyFX(t); buildGrid(); if(t===activeTrack)renderFX(); return; }
+      if(ev.target.classList.contains("ld")){ enterAssign(t); return; }       // explicit load/change
       activeTrack=t;
-      if(tr.item){ if(tr.buffer) triggerTrack(t); renderFX(); buildGrid(); }  // select + preview
-      else { setView("map"); }                                               // empty → go browse
-      $("#target").textContent="▸ Track "+(activeTrack+1);
+      if(tr.item){ if(tr.buffer) triggerTrack(t); renderFX(); buildGrid(); $("#target").textContent="▸ Track "+(activeTrack+1); }
+      else { enterAssign(t); }                                               // empty track → load one
     };
     row.appendChild(slot);
     const steps=document.createElement("div"); steps.className="steps";
@@ -182,8 +193,8 @@ function setView(v){ view=v;
   $("#seqview").style.display=v==="seq"?"flex":"none";
   if(v==="map"){ $("#target").textContent="▸ Track "+(activeTrack+1); drawMap(); }
 }
-$("#tMap").onclick=()=>setView("map");
-$("#tSeq").onclick=()=>setView("seq");
+$("#tMap").onclick=()=>{ assignMode=false; setView("map"); };
+$("#tSeq").onclick=()=>{ assignMode=false; setView("seq"); };
 $("#search").oninput=()=>startAnalyze();
 addEventListener("resize",()=>{ if(view==="map") drawMap(); });
 buildGrid(); renderFX();
