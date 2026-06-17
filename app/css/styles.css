@@ -53,14 +53,20 @@ main{flex:1;min-height:0;position:relative}
 code{background:#0c0e12;padding:1px 5px;border-radius:4px;color:var(--accent2)}
 /* ---- SEQUENCER VIEW ---- */
 #seqview{position:absolute;inset:0;display:none;flex-direction:column;overflow:auto}
-#fxpanel{flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 14px;
-  display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+#fxpanel{flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--line);padding:9px 14px;
+  display:flex;align-items:center;gap:14px}
 #fxpanel .ttl{font-weight:600;color:var(--accent)}
-.knob{display:flex;flex-direction:column;gap:3px;font-size:10px;color:var(--dim);min-width:96px}
-.knob input{width:100%}
-.knob .v{color:var(--txt);font-variant-numeric:tabular-nums}
-#grid{padding:10px 14px}
-.track{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.fxhint{color:var(--dim);font-size:11px}
+#grid{padding:10px 14px;min-width:max-content}
+.track{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+/* per-track rotary knobs */
+.knobs{display:flex;gap:5px;flex:0 0 auto;padding:0 8px}
+.knob2{width:40px;text-align:center;cursor:ns-resize;user-select:none;touch-action:none}
+.knob2 svg{width:36px;height:36px;display:block;margin:0 auto}
+.knob2 .kt{stroke:#2a303c}
+.knob2 .klabel{font-size:8px;letter-spacing:.4px;color:var(--dim);margin-top:-3px}
+.knob2 .kval{font-size:9px;color:var(--txt);font-variant-numeric:tabular-nums;line-height:1.1}
+.knob2:hover .klabel{color:var(--accent)} .knob2:hover .kp{r:3}
 .slot{width:190px;flex:0 0 auto;display:flex;align-items:center;gap:7px;background:var(--panel2);
   border:1px solid var(--line);border-radius:6px;padding:5px 8px;height:30px;cursor:pointer}
 .slot.active{border-color:var(--accent)}

@@ -18,7 +18,7 @@ function index(files){
     return (ia<0?99:ia)-(ib<0?99:ib)||a.localeCompare(b);}).map(c=>({c,n:m.get(c)}));
   curPath=[]; $("#welcome").style.display="none";
   $("#stat").textContent=`${items.length} samples · ${cats.length} top folders`;
-  renderSide(); buildLegend(); buildGrid(); renderFX(); backgroundClassify();
+  renderSide(); buildLegend(); buildGrid(); backgroundClassify();
 }
 function filtered(){
   const q=$("#search").value.trim().toLowerCase(), cp=curPath;
@@ -154,25 +154,50 @@ window.addEventListener("mouseup",e=>{ if(!scrubbing) return; scrubbing=false;
     if(p){ assignToTrack(activeTrack,p.it); assignMode=false; setView("seq"); } } });
 addEventListener("keydown",e=>{ if(e.key==="Escape" && assignMode){ assignMode=false; setView("seq"); } });
 
-/* ---------- sequencer: FX panel + step grid ---------- */
-function renderFX(){
-  const tr=tracks[activeTrack], f=tr.fx, host=$("#fxpanel");
-  const fmts={vol:v=>Math.round(v*100)+"%",pan:v=>v==0?"C":(v<0?"L":"R")+Math.round(Math.abs(v)*100),
-    cut:v=>Math.round(v)+"Hz",q:v=>(+v).toFixed(1),low:v=>(v>0?"+":"")+v+"dB",
-    high:v=>(v>0?"+":"")+v+"dB",pitch:v=>(v>0?"+":"")+v+"st"};
-  const knob=(key,label,min,max,stepv)=>`
-    <label class="knob">${label} <span class="v" id="v_${key}">${fmts[key](f[key])}</span>
-    <input type="range" id="k_${key}" min="${min}" max="${max}" step="${stepv}" value="${f[key]}"></label>`;
-  host.innerHTML=`<span class="ttl">Track ${activeTrack+1}: ${tr.item?tr.item.name:"— empty —"}</span>`
-    +`<button class="fxbtn" id="loadbtn">${tr.item?"↻ Change sample":"+ Load sample"}</button>`
-    +knob("vol","Volume",0,1,0.01)+knob("pan","Pan",-1,1,0.02)+knob("cut","Filter",200,18000,50)
-    +knob("q","Reso",0.1,12,0.1)+knob("low","EQ Low",-18,18,0.5)+knob("high","EQ High",-18,18,0.5)
-    +knob("pitch","Pitch",-12,12,1);
-  $("#loadbtn").onclick=()=>enterAssign(activeTrack);
-  for(const key of ["vol","pan","cut","q","low","high","pitch"]){
-    const el=$("#k_"+key); el.oninput=()=>{ f[key]=parseFloat(el.value);
-      $("#v_"+key).textContent=fmts[key](f[key]); ensureNodes(activeTrack); applyFX(activeTrack); };
-  }
+/* ---------- sequencer: per-track rotary knobs + step grid ---------- */
+// SVG knob geometry: 270° sweep, gap at the bottom (y-down screen coords).
+function _pt(cx,cy,r,deg){ const a=deg*Math.PI/180; return [cx+r*Math.cos(a), cy+r*Math.sin(a)]; }
+function _arc(cx,cy,r,d0,d1){ const [x0,y0]=_pt(cx,cy,r,d0),[x1,y1]=_pt(cx,cy,r,d1);
+  const large=(d1-d0)>180?1:0;
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; }
+// per-track knob parameters (def = double-click reset target)
+const KP=[
+  {key:"vol",  label:"VOL", min:0,   max:1,     step:0.01, def:0.85, fmt:v=>Math.round(v*100)},
+  {key:"pan",  label:"PAN", min:-1,  max:1,     step:0.02, def:0,    fmt:v=>v===0?"C":(v<0?"L":"R")+Math.round(Math.abs(v)*100)},
+  {key:"cut",  label:"FILT",min:200, max:18000, step:10, log:true, def:18000, fmt:v=>v>=1000?(v/1000).toFixed(1)+"k":Math.round(v)},
+  {key:"q",    label:"RES", min:0.1, max:12,    step:0.1, def:0.8,  fmt:v=>(+v).toFixed(1)},
+  {key:"low",  label:"LOW", min:-18, max:18,    step:0.5, def:0,    fmt:v=>(v>0?"+":"")+v},
+  {key:"high", label:"HIGH",min:-18, max:18,    step:0.5, def:0,    fmt:v=>(v>0?"+":"")+v},
+  {key:"pitch",label:"PIT", min:-12, max:12,    step:1,   def:0,    fmt:v=>(v>0?"+":"")+v},
+];
+// one rotary knob: drag ↕ to turn, shift = fine, scroll = nudge, double-click = reset
+function makeKnob(p, value, color, onChange){
+  const el=document.createElement("div"); el.className="knob2"; el.title=p.label;
+  el.innerHTML=`<svg viewBox="0 0 40 40">
+    <path class="kt" fill="none" stroke-width="3.2" stroke-linecap="round" d="${_arc(20,20,14,135,405)}"></path>
+    <path class="kv" fill="none" stroke-width="3.2" stroke-linecap="round" stroke="${color}"></path>
+    <circle class="kp" r="2.3" fill="#fff"></circle></svg>
+    <div class="klabel">${p.label}</div><div class="kval"></div>`;
+  const kv=el.querySelector(".kv"), kp=el.querySelector(".kp"), kval=el.querySelector(".kval");
+  const lg=!!p.log, lmin=lg?Math.log(p.min):0, lspan=lg?Math.log(p.max)-Math.log(p.min):0;
+  const toT=x=> lg ? (Math.log(x)-lmin)/lspan : (x-p.min)/(p.max-p.min);
+  const fromT=t=> lg ? Math.exp(lmin+t*lspan) : p.min+t*(p.max-p.min);
+  let v=value;
+  function render(){ const t=Math.max(0,Math.min(1,toT(v))), end=135+t*270;
+    kv.setAttribute("d",_arc(20,20,14,135,Math.max(135.01,end)));
+    const [px,py]=_pt(20,20,14,end); kp.setAttribute("cx",px.toFixed(2)); kp.setAttribute("cy",py.toFixed(2));
+    kval.textContent=p.fmt(v); }
+  function setV(nv){ v=Math.max(p.min,Math.min(p.max,nv)); if(p.step) v=Math.round(v/p.step)*p.step; render(); onChange(v); }
+  render();
+  let drag=false, sy=0, st=0;
+  el.addEventListener("pointerdown",e=>{ drag=true; sy=e.clientY; st=toT(v); el.setPointerCapture(e.pointerId); e.preventDefault(); });
+  el.addEventListener("pointermove",e=>{ if(!drag)return; const sens=e.shiftKey?700:230;
+    setV(fromT(Math.max(0,Math.min(1, st+(sy-e.clientY)/sens)))); });
+  el.addEventListener("pointerup",()=>{ drag=false; });
+  el.addEventListener("dblclick",()=>setV(p.def));
+  el.addEventListener("wheel",e=>{ e.preventDefault();
+    setV(fromT(Math.max(0,Math.min(1, toT(v)+(e.deltaY<0?0.03:-0.03))))); },{passive:false});
+  return el;
 }
 function buildGrid(){
   const wrap=$("#grid"); wrap.innerHTML="";
@@ -184,13 +209,19 @@ function buildGrid(){
       <span class="ld" title="load / change sample">⇄</span>
       <span class="m ${tr.fx.mute?'on':''}">M</span>`;
     slot.onclick=ev=>{
-      if(ev.target.classList.contains("m")){ tr.fx.mute=!tr.fx.mute; ensureNodes(t); applyFX(t); buildGrid(); if(t===activeTrack)renderFX(); return; }
+      if(ev.target.classList.contains("m")){ tr.fx.mute=!tr.fx.mute; ensureNodes(t); applyFX(t); buildGrid(); return; }
       if(ev.target.classList.contains("ld")){ enterAssign(t); return; }       // explicit load/change
       activeTrack=t;
-      if(tr.item){ if(tr.buffer) triggerTrack(t); renderFX(); buildGrid(); $("#target").textContent="▸ Track "+(activeTrack+1); }
+      if(tr.item){ if(tr.buffer) triggerTrack(t); buildGrid(); }              // select + preview
       else { enterAssign(t); }                                               // empty track → load one
     };
     row.appendChild(slot);
+    // permanent per-track rotary knobs
+    const kc=document.createElement("div"); kc.className="knobs";
+    const col=tr.type?colorFor(tr.type):"#5ad1c4";
+    for(const p of KP) kc.appendChild(makeKnob(p, tr.fx[p.key], col,
+      val=>{ tr.fx[p.key]=val; ensureNodes(t); applyFX(t); }));
+    row.appendChild(kc);
     const steps=document.createElement("div"); steps.className="steps";
     for(let s=0;s<NS;s++){ const c=document.createElement("div");
       c.className="step"+(s%4===0&&s>0?" g":"")+(pattern[t][s]?" on":""); c.dataset.s=s;
@@ -231,4 +262,19 @@ $("#tMap").onclick=()=>{ assignMode=false; setView("map"); };
 $("#tSeq").onclick=()=>{ assignMode=false; setView("seq"); };
 $("#search").oninput=()=>drawMap();
 addEventListener("resize",()=>{ if(view==="map") drawMap(); });
-buildGrid(); renderFX();
+
+/* ---------- tap tempo ---------- */
+let tapTimes=[];
+$("#tap").onclick=()=>{
+  const now=performance.now();
+  tapTimes=tapTimes.filter(t=>now-t<2000); tapTimes.push(now);   // keep recent taps only
+  if(tapTimes.length>=2){
+    let sum=0; for(let i=1;i<tapTimes.length;i++) sum+=tapTimes[i]-tapTimes[i-1];
+    const v=Math.round(60000/(sum/(tapTimes.length-1)));
+    $("#bpm").value=Math.max(40,Math.min(240,v));
+  }
+};
+
+$("#fxpanel").innerHTML='<span class="ttl">Drum machine</span>'
+  +'<span class="fxhint">knobs: drag ↕ · double-click resets · scroll = fine — click a track name to load / swap its sample</span>';
+buildGrid();

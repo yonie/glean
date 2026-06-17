@@ -45,6 +45,6 @@ function triggerTrack(t,when){ const tr=tracks[t]; if(!tr.buffer||tr.fx.mute) re
   s.playbackRate.value=Math.pow(2,tr.fx.pitch/12); s.connect(n.filter); s.start(when||0); }
 async function assignToTrack(t,it){ let buf; try{ buf=await getBuffer(it); }catch(_){ return; }
   if(!feat.has(it.path)){ try{ const v=featuresFromBuffer(buf); feat.set(it.path,v); atype.set(it.path,classifyAudio(v)); }catch(_){} }
-  tracks[t].item=it; tracks[t].buffer=buf; tracks[t].type=audioType(it); buildGrid(); renderFX(); }
+  tracks[t].item=it; tracks[t].buffer=buf; tracks[t].type=audioType(it); buildGrid(); }
 function clearTrack(t){ tracks[t].item=null; tracks[t].buffer=null; tracks[t].type=null;
-  for(let s=0;s<NS;s++) pattern[t][s]=false; buildGrid(); renderFX(); }
+  for(let s=0;s<NS;s++) pattern[t][s]=false; buildGrid(); }
