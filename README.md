@@ -77,6 +77,12 @@ docs/                screenshots + build notes
 - Per-step parameter locks; more than 8 tracks.
 - File System Access API to re-read a folder without re-picking.
 
+## Support
+
+If Glean is useful to you:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?style=flat&logo=buy-me-a-coffee)](https://buymeacoffee.com/yonie)
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
