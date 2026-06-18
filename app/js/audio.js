@@ -14,7 +14,7 @@ async function audition(it){
   let buf; try{ buf=await getBuffer(it); }catch(_){ return; }
   if(!feat.has(it.path)){ try{ const v=featuresFromBuffer(buf); feat.set(it.path,v); atype.set(it.path,classifyAudio(v)); }catch(_){} }
   if(auditionSrc){ try{auditionSrc.stop();}catch(_){} }
-  const s=ac().createBufferSource(); s.buffer=buf; s.connect(ac().destination); s.start(); auditionSrc=s;
+  const s=ac().createBufferSource(); s.buffer=buf; s.connect(master()); s.start(); auditionSrc=s;
   drawWave(buf);
 }
 function drawWave(buf){
@@ -34,7 +34,7 @@ function ensureNodes(t){
   const low=c.createBiquadFilter(); low.type="lowshelf"; low.frequency.value=220;
   const high=c.createBiquadFilter(); high.type="highshelf"; high.frequency.value=4500;
   const pan=c.createStereoPanner(); const gain=c.createGain();
-  filter.connect(low); low.connect(high); high.connect(pan); pan.connect(gain); gain.connect(c.destination);
+  filter.connect(low); low.connect(high); high.connect(pan); pan.connect(gain); gain.connect(master());
   tr.nodes={filter,low,high,pan,gain}; applyFX(t); return tr.nodes;
 }
 function applyFX(t){ const tr=tracks[t]; if(!tr.nodes) return; const f=tr.fx, n=tr.nodes;

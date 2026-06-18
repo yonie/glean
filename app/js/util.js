@@ -25,7 +25,7 @@ const typeFilter=new Set();                  // active legend filters; empty = s
 // ---- app state ----
 let items=[], cats=[], curPath=[], selected=null, view="map";
 const bufCache=new Map(), feat=new Map();
-let actx=null, auditionSrc=null, mapPts=[], analyzing=false;
+let actx=null, auditionSrc=null, mapPts=[], analyzing=false, masterNode=null;
 
 // ---- drum machine state ----
 const NT=8, NS=16;
@@ -35,3 +35,5 @@ const pattern=Array.from({length:NT},()=>new Array(NS).fill(false));
 let activeTrack=0;
 
 function ac(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); return actx; }
+// master output bus — everything (track hits + auditions) routes through here
+function master(){ if(!masterNode){ masterNode=ac().createGain(); masterNode.gain.value=0.8; masterNode.connect(ac().destination); } return masterNode; }

@@ -262,6 +262,7 @@ function setView(v){ view=v;
 $("#tMap").onclick=()=>{ assignMode=false; setView("map"); };
 $("#tSeq").onclick=()=>{ assignMode=false; setView("seq"); };
 $("#search").oninput=()=>drawMap();
+$("#master").oninput=()=>{ master().gain.value=(+$("#master").value)/100; };  // master volume (default 80)
 addEventListener("resize",()=>{ if(view==="map") drawMap(); });
 
 /* ---------- tap tempo ---------- */
