@@ -1,0 +1,13 @@
+{
+  "name": "glean",
+  "version": "0.1.0",
+  "description": "Browser-based sample browser + drum machine: explore samples in a sound-similarity map, then build beats.",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "shoot": "node scripts/shoot.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.0"
+  }
+}
