@@ -270,8 +270,8 @@ $("#tap").onclick=()=>{
   tapTimes=tapTimes.filter(t=>now-t<2000); tapTimes.push(now);   // keep recent taps only
   if(tapTimes.length>=2){
     let sum=0; for(let i=1;i<tapTimes.length;i++) sum+=tapTimes[i]-tapTimes[i-1];
-    const v=Math.round(60000/(sum/(tapTimes.length-1)));
-    $("#bpm").value=Math.max(40,Math.min(240,v));
+    const v=60000/(sum/(tapTimes.length-1));
+    $("#bpm").value=Math.max(40,Math.min(240,v)).toFixed(1);   // one decimal place
   }
 };
 
