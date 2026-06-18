@@ -1,7 +1,7 @@
-# homebrew XO — sample browser + drum machine
+# Glean — sample browser + drum machine
 
-A zero-install, browser-based sample browser inspired by XLN Audio **XO** and Waves
-**Cosmos**: point it at any folder of `.wav` samples and it lays them out in a 2D
+A zero-install, browser-based sample browser inspired by XLN Audio XO and Waves Cosmos
+(not affiliated with or endorsed by either): point it at any folder of `.wav` samples and it lays them out in a 2D
 **similarity space** (nearby = similar timbre), lets you **scan sounds by ear** by
 dragging across the map, and drops them onto an **8-track / 16-step drum machine** with
 per-track filter, EQ, pan, pitch and volume.
