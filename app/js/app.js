@@ -203,6 +203,8 @@ function buildGrid(){
   const wrap=$("#grid"); wrap.innerHTML="";
   for(let t=0;t<NT;t++){
     const tr=tracks[t], row=document.createElement("div"); row.className="track";
+    const col=tr.type?colorFor(tr.type):"#5ad1c4";   // track color follows its sample's sound
+    row.style.setProperty("--tcol",col);
     const slot=document.createElement("div"); slot.className="slot"+(t===activeTrack?" active":"");
     slot.innerHTML=`<span class="sw" style="background:${tr.type?colorFor(tr.type):'#333'}"></span>
       <span class="tn ${tr.item?'has':''}">${tr.item?tr.item.name:'Track '+(t+1)+' — empty'}</span>
@@ -218,7 +220,6 @@ function buildGrid(){
     row.appendChild(slot);
     // permanent per-track rotary knobs
     const kc=document.createElement("div"); kc.className="knobs";
-    const col=tr.type?colorFor(tr.type):"#5ad1c4";
     for(const p of KP) kc.appendChild(makeKnob(p, tr.fx[p.key], col,
       val=>{ tr.fx[p.key]=val; ensureNodes(t); applyFX(t); }));
     row.appendChild(kc);
