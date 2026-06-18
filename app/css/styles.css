@@ -51,6 +51,8 @@ main{flex:1;min-height:0;position:relative}
 .legend span:hover{background:var(--panel2)} .legend span.off{opacity:.32}
 .legend i{width:8px;height:8px;border-radius:50%}
 .welcome{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;text-align:center;color:var(--dim)}
+.welcome a{color:var(--accent);text-decoration:none;font-weight:600}
+.welcome a:hover{text-decoration:underline}
 code{background:#0c0e12;padding:1px 5px;border-radius:4px;color:var(--accent2)}
 /* ---- SEQUENCER VIEW ---- */
 #seqview{position:absolute;inset:0;display:none;flex-direction:column;overflow:auto}
