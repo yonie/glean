@@ -5,7 +5,7 @@
 $("#pick").onclick=()=>$("#dir").click();
 $("#dir").onchange=e=>index([...e.target.files]);
 function index(files){
-  items=[]; bufCache.clear(); feat.clear(); atype.clear(); proj=new Map(); pb=null; typeFilter.clear();
+  items=[]; bufCache.clear(); feat.clear(); atype.clear(); proj=new Map(); pb=null; pcaModel=null; rawB=null; typeFilter.clear();
   for(const f of files){
     if(!/\.wav$/i.test(f.name)) continue;
     const rel=f.webkitRelativePath||f.name, p=rel.split("/");
@@ -78,24 +78,74 @@ function buildLegend(){ const present=new Set(atype.values()), host=$("#legend")
 }
 
 /* ---------- background analysis + STABLE global projection ---------- */
-let proj=new Map(), pb=null, bgToken=0;
-// Compute the 2D similarity layout ONCE over ALL analyzed samples, with global bounds.
-// Folder navigation / search then only filter which dots are shown — the space and its
-// axes never reshape, so dots keep their position when you drill into a subfolder.
-function refreshProjection(){
+// proj: path -> normalized [0..1] map position; pb is non-null once a layout exists.
+let proj=new Map(), pb=null, bgToken=0, pcaModel=null, rawB=null;
+let projFrom=new Map(), tweenT0=0, tweenOn=false; const TWEEN_MS=450;
+// The 2D similarity layout over ALL analyzed samples, with global bounds. Folder
+// navigation / search only filter which dots are shown, so dots keep their position
+// when you drill into a subfolder.
+// While a big library is still scanning the map must not jump around (issue #1): the PCA
+// axes are fitted ONCE on an evenly spread first batch and every later sample is projected
+// onto those same axes, so a dot never moves once it is on the map. The bounds only grow,
+// with headroom, so rescaling is rare and animated. When the scan ends the axes are refitted
+// on the whole library, aligned to the old ones (PCA axes have arbitrary sign and order),
+// and the dots glide to their final place instead of snapping.
+function refreshProjection(final){
   const list=items.filter(it=>feat.has(it.path));
-  if(list.length<3){ proj=new Map(); pb=null; return; }
-  const coords=pca2(list.map(it=>feat.get(it.path)));
-  const m=new Map(), xs=[], ys=[];
-  list.forEach((it,i)=>{ m.set(it.path,coords[i]); xs.push(coords[i][0]); ys.push(coords[i][1]); });
-  proj=m; pb={x0:Math.min(...xs),x1:Math.max(...xs),y0:Math.min(...ys),y1:Math.max(...ys)};
+  if(list.length<3){ proj=new Map(); pb=null; pcaModel=null; rawB=null; return; }
+  if(!pcaModel || final){
+    const m=pcaFit(list.map(it=>feat.get(it.path)));
+    if(pcaModel) alignAxes(m,pcaModel,list);
+    pcaModel=m; rawB=null;
+  }
+  const raw=new Map(); let x0=1e18,x1=-1e18,y0=1e18,y1=-1e18;
+  for(const it of list){ const c=pcaProject(pcaModel,feat.get(it.path)); raw.set(it.path,c);
+    if(c[0]<x0)x0=c[0]; if(c[0]>x1)x1=c[0]; if(c[1]<y0)y0=c[1]; if(c[1]>y1)y1=c[1]; }
+  const head=final?0:0.12;                  // headroom while scanning, exact fit at the end
+  if(!rawB || x0<rawB.x0 || x1>rawB.x1 || y0<rawB.y0 || y1>rawB.y1){
+    if(rawB){ x0=Math.min(x0,rawB.x0); x1=Math.max(x1,rawB.x1); y0=Math.min(y0,rawB.y0); y1=Math.max(y1,rawB.y1); }
+    const hx=head*(x1-x0), hy=head*(y1-y0);
+    rawB={x0:x0-hx,x1:x1+hx,y0:y0-hy,y1:y1+hy};
+  }
+  const sw=(rawB.x1-rawB.x0)||1, sh=(rawB.y1-rawB.y0)||1, next=new Map();
+  for(const [p,c] of raw) next.set(p,[(c[0]-rawB.x0)/sw,(c[1]-rawB.y0)/sh]);
+  // glide from where the dots are drawn right now to where they belong
+  const from=new Map(); let moved=0;
+  for(const [p,to] of next){ const f=proj.has(p)?shownPos(p):null; if(!f) continue;
+    from.set(p,f); moved=Math.max(moved,Math.abs(f[0]-to[0]),Math.abs(f[1]-to[1])); }
+  proj=next; pb=rawB;
+  if(moved>1e-4){ projFrom=from; tweenT0=performance.now();
+    if(!tweenOn){ tweenOn=true; requestAnimationFrame(tweenTick); } }
 }
+// Flip/swap the new axes so they point the same way as the old ones.
+function alignAxes(m,old,list){
+  let a=[[0,0],[0,0]];
+  for(const it of list){ const v=feat.get(it.path), o=pcaProject(old,v), n=pcaProject(m,v);
+    for(let i=0;i<2;i++) for(let j=0;j<2;j++) a[i][j]+=o[i]*n[j]; }
+  if(Math.abs(a[0][1])+Math.abs(a[1][0])>Math.abs(a[0][0])+Math.abs(a[1][1])){
+    [m.e1,m.e2]=[m.e2,m.e1]; a=[[a[0][1],a[0][0]],[a[1][1],a[1][0]]]; }
+  if(a[0][0]<0) m.e1=m.e1.map(x=>-x);
+  if(a[1][1]<0) m.e2=m.e2.map(x=>-x);
+}
+function shownPos(p){ const to=proj.get(p); if(!tweenOn) return to;
+  const f=projFrom.get(p); if(!f) return to;
+  let t=Math.min(1,(performance.now()-tweenT0)/TWEEN_MS); t=t*t*(3-2*t);
+  return [f[0]+(to[0]-f[0])*t, f[1]+(to[1]-f[1])*t]; }
+function tweenTick(){ const done=performance.now()-tweenT0>=TWEEN_MS;
+  if(done){ tweenOn=false; projFrom=new Map(); }
+  if(view==="map") drawMap();
+  if(!done) requestAnimationFrame(tweenTick); }
+// Deterministic shuffle, so the first scanned batch spans the whole library instead of
+// being one folder (items are sorted by folder) - the axes are fitted on that batch.
+function spread(arr){ const a=arr.slice(); let s=1234567;
+  for(let i=a.length-1;i>0;i--){ s=(s*1103515245+12345)>>>0; const j=s%(i+1); [a[i],a[j]]=[a[j],a[i]]; }
+  return a; }
 // Decode + classify EVERY sample in the background so the whole galaxy, folder dots and
 // legend fill in automatically. Keeps only the small feature vector (not decoded audio),
 // so memory stays bounded for big libraries.
 async function backgroundClassify(){
   const token=++bgToken; analyzing=true;
-  const todo=items.filter(it=>!feat.has(it.path)); let done=0;
+  const todo=spread(items.filter(it=>!feat.has(it.path))), fitAt=Math.min(150,todo.length); let done=0;
   for(const it of todo){
     if(token!==bgToken) return;            // a new library was loaded — abandon this pass
     if(feat.has(it.path)) continue;
@@ -103,11 +153,12 @@ async function backgroundClassify(){
       const buf=await ac().decodeAudioData(ab.slice(0));
       const v=featuresFromBuffer(buf); feat.set(it.path,v); atype.set(it.path,classifyAudio(v));
     }catch(_){}
-    if(++done%40===0){ $("#prog").textContent=`scanning ${done}/${todo.length}…`;
-      refreshProjection(); drawMap(); renderSide(); await new Promise(r=>setTimeout(r,0)); }
+    if(++done%40===0 || done===fitAt){ $("#prog").textContent=`scanning ${done}/${todo.length}…`;
+      if(done>=fitAt){ refreshProjection(); drawMap(); }
+      renderSide(); await new Promise(r=>setTimeout(r,0)); }
   }
   analyzing=false; $("#prog").textContent="";
-  refreshProjection(); drawMap(); renderSide(); buildLegend();
+  refreshProjection(true); drawMap(); renderSide(); buildLegend();
 }
 // Draws the CURRENT folder/search subset at their fixed global positions (no re-projection).
 function drawMap(){
@@ -116,12 +167,12 @@ function drawMap(){
   const g=cv.getContext("2d"); g.clearRect(0,0,W,H);
   const pad=34*dpr;
   if(!pb){ mapPts=[]; $("#maphint").textContent=analyzing?"scanning…":"open a folder of samples"; return; }
-  const sx=x=>pad+(W-2*pad)*((x-pb.x0)/((pb.x1-pb.x0)||1)), sy=y=>pad+(H-2*pad)*((y-pb.y0)/((pb.y1-pb.y0)||1));
+  const sx=x=>pad+(W-2*pad)*x, sy=y=>pad+(H-2*pad)*y;
   const list=filtered().filter(it=>proj.has(it.path) && (!typeFilter.size || typeFilter.has(audioType(it))));
   g.fillStyle="#5b6373"; g.font=(11*dpr)+"px sans-serif";
   g.fillText("similarity space — nearby = similar timbre",14*dpr,H-12*dpr);
   mapPts=[];
-  for(const it of list){ const c=proj.get(it.path), X=sx(c[0]), Y=sy(c[1]), isSel=selected===it;
+  for(const it of list){ const c=shownPos(it.path), X=sx(c[0]), Y=sy(c[1]), isSel=selected===it;
     g.beginPath(); g.fillStyle=colorFor(audioType(it)); g.globalAlpha=isSel?1:.8;
     g.arc(X,Y,(isSel?6.5:3.4)*dpr,0,Math.PI*2); g.fill();
     if(isSel){ g.globalAlpha=1; g.lineWidth=2*dpr; g.strokeStyle="#fff"; g.stroke(); }

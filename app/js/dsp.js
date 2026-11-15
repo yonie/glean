@@ -79,7 +79,11 @@ function powerIter(C,d,defl){
   return v;
 }
 // project rows (n×d) to 2D via standardized PCA (top-2 principal components)
-function pca2(rows){
+function pca2(rows){ const m=pcaFit(rows); return rows.map(r=>pcaProject(m,r)); }
+// Fit once, keep the model: later samples are projected onto the same axes, so the map
+// does not re-shape while a library is still being scanned (see refreshProjection).
+function pcaProject(m,r){ const z=r.map((v,j)=>(v-m.mean[j])/m.std[j]); return [dot(z,m.e1),dot(z,m.e2)]; }
+function pcaFit(rows){
   const n=rows.length, d=rows[0].length;
   const mean=new Array(d).fill(0), std=new Array(d).fill(0);
   for(const r of rows) for(let j=0;j<d;j++) mean[j]+=r[j];
@@ -91,5 +95,5 @@ function pca2(rows){
   for(const z of Z) for(let a=0;a<d;a++){ const za=z[a]; for(let b=0;b<d;b++) C[a][b]+=za*z[b]; }
   for(let a=0;a<d;a++) for(let b=0;b<d;b++) C[a][b]/=n;
   const e1=powerIter(C,d,null), e2=powerIter(C,d,e1);
-  return Z.map(z=>[dot(z,e1),dot(z,e2)]);
+  return {mean,std,e1,e2};
 }
