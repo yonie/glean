@@ -82,7 +82,10 @@ function powerIter(C,d,defl){
 function pca2(rows){ const m=pcaFit(rows); return rows.map(r=>pcaProject(m,r)); }
 // Fit once, keep the model: later samples are projected onto the same axes, so the map
 // does not re-shape while a library is still being scanned (see refreshProjection).
-function pcaProject(m,r){ const z=r.map((v,j)=>(v-m.mean[j])/m.std[j]); return [dot(z,m.e1),dot(z,m.e2)]; }
+// z-scores are clipped at ±Z_CLIP so one odd sample (or a feature that happened to be
+// near-constant in the first batch) cannot fling itself, and with it the scale, off the map
+const Z_CLIP=3, zc=v=>v>Z_CLIP?Z_CLIP:v<-Z_CLIP?-Z_CLIP:v;
+function pcaProject(m,r){ const z=r.map((v,j)=>zc((v-m.mean[j])/m.std[j])); return [dot(z,m.e1),dot(z,m.e2)]; }
 function pcaFit(rows){
   const n=rows.length, d=rows[0].length;
   const mean=new Array(d).fill(0), std=new Array(d).fill(0);
@@ -90,7 +93,7 @@ function pcaFit(rows){
   for(let j=0;j<d;j++) mean[j]/=n;
   for(const r of rows) for(let j=0;j<d;j++){ const v=r[j]-mean[j]; std[j]+=v*v; }
   for(let j=0;j<d;j++) std[j]=Math.sqrt(std[j]/n)||1;
-  const Z=rows.map(r=>r.map((v,j)=>(v-mean[j])/std[j]));
+  const Z=rows.map(r=>r.map((v,j)=>zc((v-mean[j])/std[j])));
   const C=Array.from({length:d},()=>new Array(d).fill(0));
   for(const z of Z) for(let a=0;a<d;a++){ const za=z[a]; for(let b=0;b<d;b++) C[a][b]+=za*z[b]; }
   for(let a=0;a<d;a++) for(let b=0;b<d;b++) C[a][b]/=n;

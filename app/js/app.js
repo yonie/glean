@@ -98,9 +98,12 @@ function refreshProjection(final){
     if(pcaModel) alignAxes(m,pcaModel,list);
     pcaModel=m; rawB=null;
   }
-  const raw=new Map(); let x0=1e18,x1=-1e18,y0=1e18,y1=-1e18;
-  for(const it of list){ const c=pcaProject(pcaModel,feat.get(it.path)); raw.set(it.path,c);
-    if(c[0]<x0)x0=c[0]; if(c[0]>x1)x1=c[0]; if(c[1]<y0)y0=c[1]; if(c[1]>y1)y1=c[1]; }
+  // the frame spans the middle 99% of the dots, so a few strays cannot squash the rest
+  const raw=new Map(), xs=[], ys=[];
+  for(const it of list){ const c=pcaProject(pcaModel,feat.get(it.path)); raw.set(it.path,c); xs.push(c[0]); ys.push(c[1]); }
+  xs.sort((a,b)=>a-b); ys.sort((a,b)=>a-b);
+  const q=(a,f)=>a[Math.round(f*(a.length-1))];
+  let x0=q(xs,.005),x1=q(xs,.995),y0=q(ys,.005),y1=q(ys,.995);
   const head=final?0:0.12;                  // headroom while scanning, exact fit at the end
   if(!rawB || x0<rawB.x0 || x1>rawB.x1 || y0<rawB.y0 || y1>rawB.y1){
     if(rawB){ x0=Math.min(x0,rawB.x0); x1=Math.max(x1,rawB.x1); y0=Math.min(y0,rawB.y0); y1=Math.max(y1,rawB.y1); }
@@ -108,7 +111,7 @@ function refreshProjection(final){
     rawB={x0:x0-hx,x1:x1+hx,y0:y0-hy,y1:y1+hy};
   }
   const sw=(rawB.x1-rawB.x0)||1, sh=(rawB.y1-rawB.y0)||1, next=new Map();
-  for(const [p,c] of raw) next.set(p,[(c[0]-rawB.x0)/sw,(c[1]-rawB.y0)/sh]);
+  for(const [p,c] of raw) next.set(p,[edge((c[0]-rawB.x0)/sw),edge((c[1]-rawB.y0)/sh)]);
   // glide from where the dots are drawn right now to where they belong
   const from=new Map(); let moved=0;
   for(const [p,to] of next){ const f=proj.has(p)?shownPos(p):null; if(!f) continue;
@@ -117,6 +120,9 @@ function refreshProjection(final){
   if(moved>1e-4){ projFrom=from; tweenT0=performance.now();
     if(!tweenOn){ tweenOn=true; requestAnimationFrame(tweenTick); } }
 }
+// strays outside the frame are eased into a thin band along its edge instead of off the map
+const EDGE=0.03;
+function edge(v){ return v<0 ? -EDGE*(1-Math.exp(v/EDGE)) : v>1 ? 1+EDGE*(1-Math.exp((1-v)/EDGE)) : v; }
 // Flip/swap the new axes so they point the same way as the old ones.
 function alignAxes(m,old,list){
   let a=[[0,0],[0,0]];
