@@ -90,3 +90,23 @@ code{background:#0c0e12;padding:1px 5px;border-radius:4px;color:var(--accent2)}
 .step.g{margin-left:8px} .step.on{background:var(--tcol,var(--accent));border-color:var(--tcol,var(--accent))}
 .step.play{outline:2px solid var(--accent2);outline-offset:-2px}
 .hint{color:var(--dim);font-size:11px;padding:0 14px 12px}
+.btn:disabled{opacity:.75;cursor:default}
+.spin{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px;border-radius:50%;
+  border:2px solid currentColor;border-right-color:transparent;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.outx{margin-left:auto;display:flex;gap:6px}
+.pop{position:relative}
+.ico{width:15px;height:15px;vertical-align:-3px;margin-right:6px}
+.btn.iconly{padding:7px 8px} .btn.iconly .ico{margin:0}
+.outx .panel{position:absolute;right:0;top:calc(100% + 6px);z-index:20;background:var(--panel2);
+  border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.45);padding:12px;min-width:230px}
+.outx .panel[hidden]{display:none}
+.panel .ph{font-weight:600;margin-bottom:10px}
+.panel .seg{margin-bottom:6px} .panel .seg button{flex:1;padding:6px 0}
+.panel .pd{color:var(--dim);font-size:11px;margin-bottom:12px}
+.panel #bounceGo{width:100%}
+.panel.menu{padding:5px;min-width:250px}
+.mi{display:flex;align-items:center;gap:10px;width:100%;background:none;border:0;color:var(--txt);
+  text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer;font:inherit}
+.mi:hover{background:var(--line)} .mi .ico{width:18px;height:18px;margin:0;flex:0 0 auto;color:var(--accent)}
+.mi b{display:block;font-weight:600} .mi small{color:var(--dim);font-size:11px}
