@@ -111,3 +111,10 @@ code{background:#0c0e12;padding:1px 5px;border-radius:4px;color:var(--accent2)}
 .mi:hover{background:var(--line)} .mi .ico{width:18px;height:18px;margin:0;flex:0 0 auto;color:var(--accent)}
 .mi b{display:block;font-weight:600} .mi small{color:var(--dim);font-size:11px}
 .panel .pl{color:var(--dim);font-size:11px;margin-bottom:5px}
+.mi.row{cursor:default} .mi.row:hover{background:none}
+.stepper{margin-left:auto;display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.stepper button{background:var(--panel);color:var(--txt);border:0;width:26px;height:28px;cursor:pointer;font-size:15px}
+.stepper button:hover{background:var(--line)} .stepper button:disabled{color:var(--dim);opacity:.4;cursor:default}
+.stepper input{width:38px;height:28px;background:var(--bg);color:var(--txt);border:0;text-align:center;font:600 13px inherit;outline:none;-moz-appearance:textfield}
+.stepper input::-webkit-outer-spin-button,.stepper input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.panel .sep{height:1px;background:var(--line);margin:4px 6px}

@@ -47,4 +47,4 @@ async function assignToTrack(t,it){ let buf; try{ buf=await getBuffer(it); }catc
   if(!feat.has(it.path)){ try{ const v=featuresFromBuffer(buf); feat.set(it.path,v); atype.set(it.path,classifyAudio(v)); }catch(_){} }
   tracks[t].item=it; tracks[t].buffer=buf; tracks[t].type=audioType(it); buildGrid(); }
 function clearTrack(t){ tracks[t].item=null; tracks[t].buffer=null; tracks[t].type=null;
-  for(let s=0;s<NS;s++) pattern[t][s]=false; buildGrid(); }
+  pattern[t].fill(false); buildGrid(); }

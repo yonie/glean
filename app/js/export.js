@@ -75,7 +75,7 @@ const safeName=s=>s.replace(/[\\/:*?"<>|]+/g,"_");
 async function exportKit(){
   if(!tracks.some(tr=>tr.item)) return "No samples loaded";
   const entries=[], kit={glean:1,bpm:bpm(),steps:NS,tracks:[]};
-  for(let t=0;t<NT;t++){ const tr=tracks[t], steps=pattern[t].map(on=>on?"x":".").join("");
+  for(let t=0;t<NT;t++){ const tr=tracks[t], steps=pattern[t].slice(0,NS).map(on=>on?"x":".").join("");
     if(!tr.item){ kit.tracks.push({sample:null,fx:tr.fx,steps}); continue; }
     const name=`samples/${t+1}-${safeName(tr.item.name)}`;
     entries.push({name,data:new Uint8Array(await tr.item.file.arrayBuffer())});
@@ -89,9 +89,10 @@ async function importKit(file){
   try{ files=await unzip(await file.arrayBuffer()); kit=JSON.parse(new TextDecoder().decode(files.get("kit.json"))); }
   catch(_){ return "Not a Glean kit"; }
   if(!kit||!Array.isArray(kit.tracks)) return "Not a Glean kit";
+  setSteps(+kit.steps||16);
   for(let t=0;t<NT;t++){ const k=kit.tracks[t]||{}, tr=tracks[t];
     tr.fx={...FXDEF(),...(k.fx||{})}; applyFX(t);
-    const st=String(k.steps||""); for(let s=0;s<NS;s++) pattern[t][s]=st[s]==="x";
+    const st=String(k.steps||""); for(let s=0;s<MAXS;s++) pattern[t][s]=st[s]==="x";
     const data=k.sample&&files.get(k.sample);
     if(!data){ tr.item=null; tr.buffer=null; tr.type=null; continue; }
     const fname=k.sample.split("/").pop().replace(/^\d+-/,"");
@@ -103,12 +104,14 @@ async function importKit(file){
 }
 
 /* ---------- bounce ---------- */
-const live=t=>tracks[t].buffer&&!tracks[t].fx.mute&&pattern[t].some(Boolean);
+// A bar is one pass through the pattern: NS steps, each a 16th note.
+const barSecs=()=>NS*(60/bpm())*0.25;
+const live=t=>tracks[t].buffer&&!tracks[t].fx.mute&&pattern[t].slice(0,NS).some(Boolean);
 // let the last hits ring out: the longest sample that is played, at its pitch (max 4 s)
 function bounceTail(){ let tail=0;
   for(let t=0;t<NT;t++) if(live(t)) tail=Math.max(tail,tracks[t].buffer.duration/Math.pow(2,tracks[t].fx.pitch/12));
   return Math.min(tail,4); }
-const bounceSecs=bars=>bars*NS*(60/bpm())*0.25+bounceTail();
+const bounceSecs=bars=>bars*barSecs()+bounceTail();
 async function renderPattern(bars){
   const sr=44100, stepDur=(60/bpm())*0.25, nSteps=bars*NS, body=nSteps*stepDur, tail=bounceTail();
   const oc=new OfflineAudioContext(2,Math.ceil((body+tail)*sr),sr);
@@ -139,7 +142,7 @@ function wavBlob(buf){                         // 16-bit PCM
     const x=Math.max(-1,Math.min(1,chans[c][i])); v.setInt16(o,x<0?x*0x8000:x*0x7fff,true); o+=2; }
   return new Blob([v],{type:"audio/wav"});
 }
-const patternLive=()=>tracks.some((tr,t)=>tr.buffer&&!tr.fx.mute&&pattern[t].some(Boolean));
+const patternLive=()=>tracks.some((_,t)=>live(t));
 // MP3: 320 kbps CBR through LAME (lamejs, vendor/lame.min.js, LGPL), loaded on first use
 let lameReady=null;
 function loadLame(){
@@ -177,6 +180,7 @@ const ICON={
   more:'<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
   pkgOut:'<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
   pkgIn:'<path d="M4 14v5h16v-5"/><path d="M12 3v11M7 9l5 5 5-5"/>',
+  steps:'<rect x="2" y="8" width="4" height="8" rx="1"/><rect x="7.3" y="8" width="4" height="8" rx="1"/><rect x="12.6" y="8" width="4" height="8" rx="1"/><rect x="18" y="8" width="4" height="8" rx="1"/>',
 };
 const icon=(k,fill)=>`<svg class="ico" viewBox="0 0 24 24" ${fill?'fill="currentColor" stroke="none"':'fill="none" stroke="currentColor"'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
 const BARS=[1,2,4,8,16];
@@ -196,8 +200,11 @@ $("#fxpanel").insertAdjacentHTML("beforeend",`<span class="outx">
       <div class="pd" id="fmtInfo"></div>
       <button class="btn" id="bounceGo"></button>
     </div></span>
-  <span class="pop"><button class="btn ghost iconly" id="kitBtn" title="Kit: export / import" aria-haspopup="true">${icon("more",1)}</button>
+  <span class="pop"><button class="btn ghost iconly" id="kitBtn" title="More" aria-haspopup="true">${icon("more",1)}</button>
     <div class="panel menu" id="kitMenu" hidden>
+      <div class="mi row">${icon("steps")}<span><b>Steps</b><small>Pattern length</small></span>
+        <span class="stepper"><button id="stepDn" title="fewer steps">−</button><input id="stepN" type="number" title="${MINS} to ${MAXS} steps" min="${MINS}" max="${MAXS}"><button id="stepUp" title="more steps">+</button></span></div>
+      <div class="sep"></div>
       <button class="mi" id="kitSave">${icon("pkgOut")}<span><b>Export kit</b><small>Samples + pattern as one .zip</small></span></button>
       <button class="mi" id="kitLoad">${icon("pkgIn")}<span><b>Import kit…</b><small>Load a kit .zip</small></span></button>
     </div></span>
@@ -207,7 +214,7 @@ function openPanel(id){ for(const p of $$(".outx .panel")) p.hidden=p.id!==id||!
 function closePanels(){ for(const p of $$(".outx .panel")) if(!p.querySelector(":disabled")) p.hidden=true; }
 function showBars(){
   for(const b of $$("#barSeg button")) b.classList.toggle("on",+b.dataset.n===bounceBars);
-  const secs=bounceBars*4*60/bpm();
+  const secs=bounceBars*barSecs();
   $("#barInfo").textContent=`${bounceBars} bar${bounceBars>1?"s":""} · ${secs.toFixed(1)} s at ${bpmLabel()} BPM`;
   for(const b of $$("#fmtSeg button")) b.classList.toggle("on",b.dataset.f===bounceFmt);
   const total=bounceSecs(bounceBars), bytes=bounceFmt==="mp3"?total*320000/8:total*44100*4+44;
@@ -217,6 +224,18 @@ function showBars(){
 }
 $("#fmtSeg").onclick=e=>{ const f=e.target.dataset.f; if(!f) return; bounceFmt=f;
   try{ localStorage.setItem("glean.bounceFmt",f); }catch(_){} showBars(); };
+// pattern length; steps beyond it are kept, so shortening and lengthening again loses nothing
+function setSteps(n){
+  n=Math.max(MINS,Math.min(MAXS,Math.round(+n)||16)); NS=n;
+  if(curStep>=NS) curStep=0;
+  $("#stepN").value=n; $("#stepDn").disabled=n<=MINS; $("#stepUp").disabled=n>=MAXS;
+  buildGrid();
+}
+$("#stepDn").onclick=()=>setSteps(NS-1);
+$("#stepUp").onclick=()=>setSteps(NS+1);
+$("#stepN").onchange=e=>setSteps(e.target.value);
+$("#stepN").onkeydown=e=>{ if(e.key==="Enter") setSteps(e.target.value); };
+setSteps(NS);
 $("#bounceBtn").onclick=e=>{ e.stopPropagation(); openPanel("bouncePanel"); };
 $("#kitBtn").onclick=e=>{ e.stopPropagation(); openPanel("kitMenu"); };
 for(const p of $$(".outx .panel")) p.onclick=e=>e.stopPropagation();

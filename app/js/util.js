@@ -28,10 +28,12 @@ const bufCache=new Map(), feat=new Map();
 let actx=null, auditionSrc=null, mapPts=[], analyzing=false, masterNode=null;
 
 // ---- drum machine state ----
-const NT=8, NS=16;
+const NT=8, MAXS=32, MINS=4;
+let NS=16;                                   // steps per pattern, 4..32 (set in the ⋯ menu)
 const FXDEF=()=>({vol:0.85,pan:0,cut:18000,q:0.8,low:0,high:0,pitch:0,mute:false});
 const tracks=Array.from({length:NT},()=>({item:null,buffer:null,type:null,fx:FXDEF(),nodes:null}));
-const pattern=Array.from({length:NT},()=>new Array(NS).fill(false));
+// always MAXS long: shortening the pattern hides steps instead of deleting them
+const pattern=Array.from({length:NT},()=>new Array(MAXS).fill(false));
 let activeTrack=0;
 
 function ac(){ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); return actx; }
