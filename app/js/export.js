@@ -103,13 +103,14 @@ async function importKit(file){
 }
 
 /* ---------- bounce ---------- */
-async function renderPattern(bars){
-  const sr=44100, stepDur=(60/bpm())*0.25, nSteps=bars*NS, body=nSteps*stepDur;
-  const live=t=>tracks[t].buffer&&!tracks[t].fx.mute&&pattern[t].some(Boolean);
-  // let the last hits ring out: the longest sample that is played, at its pitch (max 4 s)
-  let tail=0;
+const live=t=>tracks[t].buffer&&!tracks[t].fx.mute&&pattern[t].some(Boolean);
+// let the last hits ring out: the longest sample that is played, at its pitch (max 4 s)
+function bounceTail(){ let tail=0;
   for(let t=0;t<NT;t++) if(live(t)) tail=Math.max(tail,tracks[t].buffer.duration/Math.pow(2,tracks[t].fx.pitch/12));
-  tail=Math.min(tail,4);
+  return Math.min(tail,4); }
+const bounceSecs=bars=>bars*NS*(60/bpm())*0.25+bounceTail();
+async function renderPattern(bars){
+  const sr=44100, stepDur=(60/bpm())*0.25, nSteps=bars*NS, body=nSteps*stepDur, tail=bounceTail();
   const oc=new OfflineAudioContext(2,Math.ceil((body+tail)*sr),sr);
   const out=oc.createGain(); out.gain.value=master().gain.value; out.connect(oc.destination);
   for(let t=0;t<NT;t++){ if(!live(t)) continue; const tr=tracks[t], f=tr.fx;
@@ -139,10 +140,34 @@ function wavBlob(buf){                         // 16-bit PCM
   return new Blob([v],{type:"audio/wav"});
 }
 const patternLive=()=>tracks.some((tr,t)=>tr.buffer&&!tr.fx.mute&&pattern[t].some(Boolean));
+// MP3: 320 kbps CBR through LAME (lamejs, vendor/lame.min.js, LGPL), loaded on first use
+let lameReady=null;
+function loadLame(){
+  if(window.lamejs) return Promise.resolve();
+  return lameReady||(lameReady=new Promise((ok,bad)=>{ const s=document.createElement("script");
+    s.src="vendor/lame.min.js"; s.onload=ok; s.onerror=()=>{ lameReady=null; bad(new Error("lame")); };
+    document.head.appendChild(s); }));
+}
+async function mp3Blob(buf){
+  await loadLame();
+  const enc=new lamejs.Mp3Encoder(2,buf.sampleRate,320), n=buf.length, out=[];
+  const to16=d=>{ const a=new Int16Array(d.length);
+    for(let i=0;i<d.length;i++){ const x=Math.max(-1,Math.min(1,d[i])); a[i]=x<0?x*0x8000:x*0x7fff; } return a; };
+  const L=to16(buf.getChannelData(0)), R=to16(buf.getChannelData(buf.numberOfChannels>1?1:0));
+  const CH=1152*40;
+  for(let i=0;i<n;i+=CH){
+    const m=enc.encodeBuffer(L.subarray(i,i+CH),R.subarray(i,i+CH)); if(m.length) out.push(m);
+    await new Promise(r=>setTimeout(r));      // let the spinner turn between chunks
+  }
+  const m=enc.flush(); if(m.length) out.push(m);
+  return new Blob(out,{type:"audio/mpeg"});
+}
 async function bounce(){
   if(!patternLive()) return "Pattern is empty";
   const buf=await renderPattern(bounceBars);
-  saveBlob(wavBlob(buf),`glean-${bpmLabel()}bpm-${bounceBars}bar${bounceBars>1?"s":""}.wav`);
+  const name=`glean-${bpmLabel()}bpm-${bounceBars}bar${bounceBars>1?"s":""}`;
+  if(bounceFmt==="mp3") saveBlob(await mp3Blob(buf),name+".mp3");
+  else saveBlob(wavBlob(buf),name+".wav");
 }
 
 /* ---------- UI: a Bounce popover and a ⋯ kit menu, right side of the drum machine bar ---------- */
@@ -155,15 +180,21 @@ const ICON={
 };
 const icon=(k,fill)=>`<svg class="ico" viewBox="0 0 24 24" ${fill?'fill="currentColor" stroke="none"':'fill="none" stroke="currentColor"'} stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
 const BARS=[1,2,4,8,16];
-let bounceBars=4; try{ const v=+localStorage.getItem("glean.bounceBars"); if(BARS.includes(v)) bounceBars=v; }catch(_){}
+let bounceBars=4, bounceFmt="wav";
+try{ const v=+localStorage.getItem("glean.bounceBars"); if(BARS.includes(v)) bounceBars=v;
+  if(localStorage.getItem("glean.bounceFmt")==="mp3") bounceFmt="mp3"; }catch(_){}
 
 $("#fxpanel").insertAdjacentHTML("beforeend",`<span class="outx">
   <span class="pop"><button class="btn ghost" id="bounceBtn" aria-haspopup="true">${icon("wave")}Bounce</button>
     <div class="panel" id="bouncePanel" hidden>
-      <div class="ph">Bounce to WAV</div>
+      <div class="ph">Bounce</div>
+      <div class="pl">Length (bars)</div>
       <div class="seg" id="barSeg">${BARS.map(n=>`<button data-n="${n}">${n}</button>`).join("")}</div>
       <div class="pd" id="barInfo"></div>
-      <button class="btn" id="bounceGo">${icon("save")}Save WAV</button>
+      <div class="pl">Format</div>
+      <div class="seg" id="fmtSeg"><button data-f="wav">WAV</button><button data-f="mp3">MP3 320k</button></div>
+      <div class="pd" id="fmtInfo"></div>
+      <button class="btn" id="bounceGo"></button>
     </div></span>
   <span class="pop"><button class="btn ghost iconly" id="kitBtn" title="Kit: export / import" aria-haspopup="true">${icon("more",1)}</button>
     <div class="panel menu" id="kitMenu" hidden>
@@ -178,7 +209,14 @@ function showBars(){
   for(const b of $$("#barSeg button")) b.classList.toggle("on",+b.dataset.n===bounceBars);
   const secs=bounceBars*4*60/bpm();
   $("#barInfo").textContent=`${bounceBars} bar${bounceBars>1?"s":""} · ${secs.toFixed(1)} s at ${bpmLabel()} BPM`;
+  for(const b of $$("#fmtSeg button")) b.classList.toggle("on",b.dataset.f===bounceFmt);
+  const total=bounceSecs(bounceBars), bytes=bounceFmt==="mp3"?total*320000/8:total*44100*4+44;
+  const size=bytes<1e6?`${Math.max(1,Math.round(bytes/1e3))} KB`:`${(bytes/1e6).toFixed(1)} MB`;
+  $("#fmtInfo").textContent=(bounceFmt==="mp3"?"320 kbps CBR, stereo":"16-bit, 44.1 kHz, stereo")+` · ≈ ${size}`;
+  if(!$("#bounceGo").disabled) $("#bounceGo").innerHTML=`${icon("save")}Save ${bounceFmt.toUpperCase()}`;
 }
+$("#fmtSeg").onclick=e=>{ const f=e.target.dataset.f; if(!f) return; bounceFmt=f;
+  try{ localStorage.setItem("glean.bounceFmt",f); }catch(_){} showBars(); };
 $("#bounceBtn").onclick=e=>{ e.stopPropagation(); openPanel("bouncePanel"); };
 $("#kitBtn").onclick=e=>{ e.stopPropagation(); openPanel("kitMenu"); };
 for(const p of $$(".outx .panel")) p.onclick=e=>e.stopPropagation();

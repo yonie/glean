@@ -110,3 +110,4 @@ code{background:#0c0e12;padding:1px 5px;border-radius:4px;color:var(--accent2)}
   text-align:left;padding:8px 10px;border-radius:6px;cursor:pointer;font:inherit}
 .mi:hover{background:var(--line)} .mi .ico{width:18px;height:18px;margin:0;flex:0 0 auto;color:var(--accent)}
 .mi b{display:block;font-weight:600} .mi small{color:var(--dim);font-size:11px}
+.panel .pl{color:var(--dim);font-size:11px;margin-bottom:5px}

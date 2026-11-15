@@ -86,3 +86,5 @@ If Glean is useful to you:
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+MP3 export uses [LAME](https://lame.sourceforge.io) through [lamejs](https://github.com/zhuker/lamejs), LGPL-3.0, unmodified in `app/vendor/lame.min.js` and loaded only when an MP3 is bounced.
