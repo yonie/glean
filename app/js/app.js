@@ -104,7 +104,7 @@ function refreshProjection(final){
   xs.sort((a,b)=>a-b); ys.sort((a,b)=>a-b);
   const q=(a,f)=>a[Math.round(f*(a.length-1))];
   let x0=q(xs,.005),x1=q(xs,.995),y0=q(ys,.005),y1=q(ys,.995);
-  const head=final?0:0.12;                  // headroom while scanning, exact fit at the end
+  const head=0.08;                          // same breathing room while scanning and when done, so the end does not zoom in
   if(!rawB || x0<rawB.x0 || x1>rawB.x1 || y0<rawB.y0 || y1>rawB.y1){
     if(rawB){ x0=Math.min(x0,rawB.x0); x1=Math.max(x1,rawB.x1); y0=Math.min(y0,rawB.y0); y1=Math.max(y1,rawB.y1); }
     const hx=head*(x1-x0), hy=head*(y1-y0);
@@ -173,7 +173,10 @@ function drawMap(){
   const g=cv.getContext("2d"); g.clearRect(0,0,W,H);
   const pad=34*dpr;
   if(!pb){ mapPts=[]; $("#maphint").textContent=analyzing?"scanning…":"open a folder of samples"; return; }
-  const sx=x=>pad+(W-2*pad)*x, sy=y=>pad+(H-2*pad)*y;
+  // the edge band (see edge()) stays inside the padding, so even the outermost dots keep a margin;
+  // a little extra at the top and bottom clears the counter and the hint text
+  const pT=44*dpr, pB=36*dpr, span=1+2*EDGE;
+  const sx=x=>pad+(W-2*pad)*(x+EDGE)/span, sy=y=>pT+(H-pT-pB)*(y+EDGE)/span;
   const list=filtered().filter(it=>proj.has(it.path) && (!typeFilter.size || typeFilter.has(audioType(it))));
   g.fillStyle="#5b6373"; g.font=(11*dpr)+"px sans-serif";
   g.fillText("similarity space — nearby = similar timbre",14*dpr,H-12*dpr);
